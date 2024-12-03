@@ -3,7 +3,7 @@ name: Enforce Milestone Assignment
 on:
   pull_request:
     branches: [ "main" ]
-    types: [ "milestoned", "demilestoned" ]
+    types: [assigned, opened, synchronize, reopened, milestoned, demilestoned]
 
 jobs:
   enforce-milestone:
