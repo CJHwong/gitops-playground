@@ -13,6 +13,9 @@ on:
 
 jobs:
   enforce-milestone:
+    permissions:
+      pull-requests: read
+      repository-projects: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
