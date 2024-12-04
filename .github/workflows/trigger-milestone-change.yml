@@ -35,7 +35,7 @@ jobs:
                   owner,
                   repo,
                   workflow_id: workflowFileName,
-                  ref: pr.base.ref, // Use the base branch of the PR
+                  ref: pr.head.ref, // Use the head branch of the PR
                   inputs: {
                     pr_number: pr.number.toString()
                   }
