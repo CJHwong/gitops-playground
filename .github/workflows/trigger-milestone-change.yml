@@ -6,6 +6,8 @@ on:
 
 jobs:
   trigger-milestone-checks:
+    permissions:
+      actions: write
     runs-on: ubuntu-latest
     steps:
       - name: Rerun Milestone Enforcement Checks
