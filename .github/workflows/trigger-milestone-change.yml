@@ -2,47 +2,59 @@ name: Trigger Milestone Enforcement Rechecks
 
 on:
   milestone:
-    types: [created, edited, deleted, closed, opened]
+    types: [created, edited, deleted]
 
 jobs:
   trigger-milestone-checks:
-    permissions:
-      actions: write
-      pull-requests: read
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger PR Milestone Rechecks
+      - name: Rerun Milestone Enforcement Checks
         uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            // Fetch all open pull requests
             const { owner, repo } = context.repo;
+            
+            // Fetch open pull requests
             const openPrs = await github.rest.pulls.list({
               owner,
               repo,
               state: 'open'
             });
 
-            // Workflow to re-run the milestone enforcement action
-            const workflowFileName = 'check-milestone.yml'; // Name of your original milestone enforcement workflow
+            // Workflow name to target
+            const workflowFileName = 'check-milestone.yml';
 
-            // Iterate through open PRs and re-run the workflow
             for (const pr of openPrs.data) {
               try {
-                // Dispatch workflow run for each PR
-                await github.rest.actions.createWorkflowDispatch({
+                // Find recent workflow runs for this PR
+                const runs = await github.rest.actions.listWorkflowRuns({
                   owner,
                   repo,
                   workflow_id: workflowFileName,
-                  ref: pr.head.ref, // Use the head branch of the PR
-                  inputs: {
-                    pr_number: pr.number.toString()
-                  }
+                  branch: pr.head.ref,
+                  event: 'pull_request',
+                  per_page: 5 // Limit to recent runs
                 });
 
-                console.log(`Triggered workflow check for PR #${pr.number}`);
+                // Find the most recent run for this PR
+                const prRun = runs.data.workflow_runs.find(run => 
+                  run.pull_requests.some(prInfo => prInfo.number === pr.number)
+                );
+
+                // If a run is found, rerun it
+                if (prRun) {
+                  await github.rest.actions.reRunWorkflow({
+                    owner,
+                    repo,
+                    run_id: prRun.id
+                  });
+
+                  console.log(`Reran workflow check for PR #${pr.number}`);
+                } else {
+                  console.log(`No recent workflow run found for PR #${pr.number}`);
+                }
               } catch (error) {
-                console.error(`Failed to trigger workflow for PR #${pr.number}:`, error);
+                console.error(`Failed to rerun workflow for PR #${pr.number}:`, error);
               }
             }
