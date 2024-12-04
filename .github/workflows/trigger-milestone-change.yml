@@ -25,7 +25,7 @@ jobs:
             });
 
             // Workflow to re-run the milestone enforcement action
-            const workflowFileName = 'enforce-milestone.yml'; // Name of your original milestone enforcement workflow
+            const workflowFileName = 'check-milestone.yml'; // Name of your original milestone enforcement workflow
 
             // Iterate through open PRs and re-run the workflow
             for (const pr of openPrs.data) {
