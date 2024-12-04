@@ -6,6 +6,9 @@ on:
 
 jobs:
   trigger-milestone-checks:
+    permissions:
+      actions: write
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - name: Trigger PR Milestone Rechecks
