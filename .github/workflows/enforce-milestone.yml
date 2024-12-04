@@ -14,12 +14,11 @@ on:
 jobs:
   enforce-milestone:
     permissions:
-      pull-requests: read
       statuses: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/github-script@v6
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -48,15 +47,15 @@ jobs:
             
             // If no milestone is assigned, set failure status
             if (!currentMilestone) {
-              // await github.rest.repos.createCommitStatus({
-              //   owner,
-              //   repo,
-              //   sha: pr.head.sha,
-              //   state: 'failure',
-              //   context: statusContext,
-              //   description: 'Pull Request must be assigned to a milestone',
-              //   target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
-              // });
+              await github.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha: pr.head.sha,
+                state: 'failure',
+                context: statusContext,
+                description: 'Pull Request must be assigned to a milestone',
+                target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
+              });
               core.setFailed('Pull Request must be assigned to a milestone.');
               return;
             }
@@ -89,15 +88,15 @@ jobs:
             }
 
             // Set commit status
-            // await github.rest.repos.createCommitStatus({
-            //   owner,
-            //   repo,
-            //   sha: pr.head.sha,
-            //   state: statusState,
-            //   context: statusContext,
-            //   description: statusDescription,
-            //   target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
-            // });
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: pr.head.sha,
+              state: statusState,
+              context: statusContext,
+              description: statusDescription,
+              target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
+            });
 
             // If it's a failure, also set the action to fail
             if (statusState === 'failure') {
