@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [ "main" ]
     types: [assigned, opened, synchronize, reopened, milestoned, demilestoned]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Optional PR Number to Check'
+        required: false
+        type: string
 
 jobs:
   enforce-milestone:
@@ -15,8 +21,24 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
-            const currentMilestone = context.payload.pull_request.milestone;
+            
+            // Determine PR number - either from context or workflow dispatch input
+            const prNumber = context.payload.inputs?.pr_number || 
+                            context.payload.pull_request?.number;
+
+            if (!prNumber) {
+              core.setFailed('No pull request number found');
+              return;
+            }
+
+            // Fetch the specific PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber
+            });
+
+            const currentMilestone = pr.milestone;
 
             // If no milestone is assigned, fail
             if (!currentMilestone) {
