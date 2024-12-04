@@ -40,8 +40,20 @@ jobs:
 
             const currentMilestone = pr.milestone;
 
-            // If no milestone is assigned, fail
+            // Create a base status context
+            const statusContext = 'Milestone Enforcement';
+            
+            // If no milestone is assigned, set failure status
             if (!currentMilestone) {
+              await github.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha: pr.head.sha,
+                state: 'failure',
+                context: statusContext,
+                description: 'Pull Request must be assigned to a milestone',
+                target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
+              });
               core.setFailed('Pull Request must be assigned to a milestone.');
               return;
             }
@@ -63,7 +75,28 @@ jobs:
                 : current;
             });
 
+            // Prepare status details
+            let statusState = 'success';
+            let statusDescription = `Assigned to earliest milestone: ${currentMilestone.title}`;
+
             // Check if the current milestone is the earliest
             if (earliestMilestone.number !== currentMilestone.number) {
-              core.setFailed(`Pull Request must be assigned to the milestone with the earliest due date (${earliestMilestone.title}).`);
+              statusState = 'failure';
+              statusDescription = `Must be assigned to earliest milestone: ${earliestMilestone.title} (currently assigned to ${currentMilestone.title})`;
+            }
+
+            // Set commit status
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: pr.head.sha,
+              state: statusState,
+              context: statusContext,
+              description: statusDescription,
+              target_url: `https://github.com/${owner}/${repo}/pull/${prNumber}`
+            });
+
+            // If it's a failure, also set the action to fail
+            if (statusState === 'failure') {
+              core.setFailed(statusDescription);
             }
