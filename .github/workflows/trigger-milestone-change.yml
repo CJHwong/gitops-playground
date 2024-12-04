@@ -1,0 +1,45 @@
+name: Trigger Milestone Enforcement Rechecks
+
+on:
+  milestone:
+    types: [created, edited, deleted]
+
+jobs:
+  trigger-milestone-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger PR Milestone Rechecks
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            // Fetch all open pull requests
+            const { owner, repo } = context.repo;
+            const openPrs = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open'
+            });
+
+            // Workflow to re-run the milestone enforcement action
+            const workflowFileName = 'enforce-milestone.yml'; // Name of your original milestone enforcement workflow
+
+            // Iterate through open PRs and re-run the workflow
+            for (const pr of openPrs.data) {
+              try {
+                // Dispatch workflow run for each PR
+                await github.rest.actions.createWorkflowDispatch({
+                  owner,
+                  repo,
+                  workflow_id: workflowFileName,
+                  ref: pr.base.ref, // Use the base branch of the PR
+                  inputs: {
+                    pr_number: pr.number.toString()
+                  }
+                });
+
+                console.log(`Triggered workflow check for PR #${pr.number}`);
+              } catch (error) {
+                console.error(`Failed to trigger workflow for PR #${pr.number}:`, error);
+              }
+            }
