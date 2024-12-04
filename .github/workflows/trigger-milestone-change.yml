@@ -2,7 +2,7 @@ name: Trigger Milestone Enforcement Rechecks
 
 on:
   milestone:
-    types: [created, edited, deleted]
+    types: [created, edited, deleted, closed, opened]
 
 jobs:
   trigger-milestone-checks:
