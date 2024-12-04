@@ -25,7 +25,7 @@ jobs:
             });
 
             // Workflow name to target
-            const workflowFileName = 'check-milestone.yml';
+            const workflowFileName = 'enforce-milestone.yml';
 
             for (const pr of openPrs.data) {
               try {
@@ -44,7 +44,7 @@ jobs:
                   run.pull_requests.some(prInfo => prInfo.number === pr.number)
                 );
 
-                // If a run is found, rerun it
+                // If a run is found, rerun it or dispatch a new one
                 if (prRun) {
                   await github.rest.actions.reRunWorkflow({
                     owner,
@@ -54,9 +54,19 @@ jobs:
 
                   console.log(`Reran workflow check for PR #${pr.number}`);
                 } else {
-                  console.log(`No recent workflow run found for PR #${pr.number}`);
+                  await github.rest.actions.createWorkflowDispatch({
+                    owner,
+                    repo,
+                    workflow_id: workflowFileName,
+                    ref: pr.head.ref, // Use the head branch of the PR
+                    inputs: {
+                      pr_number: pr.number.toString()
+                    }
+                  });
+
+                  console.log(`Dispatched new workflow check for PR #${pr.number}`);
                 }
               } catch (error) {
-                console.error(`Failed to rerun workflow for PR #${pr.number}:`, error);
+                console.error(`Failed to run workflow for PR #${pr.number}:`, error);
               }
             }
