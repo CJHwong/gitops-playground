@@ -1,4 +1,4 @@
-name: Enforce Milestone Assignment
+name: Enforce Earliest Milestone Assignment
 
 on:
   pull_request:
@@ -12,8 +12,36 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/github-script@v6
         with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const milestone = context.payload.pull_request.milestone;
-            if (!milestone) {
-              core.setFailed('Pull Request must be assigned to a milestone before merging.');
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const currentMilestone = context.payload.pull_request.milestone;
+
+            // If no milestone is assigned, fail
+            if (!currentMilestone) {
+              core.setFailed('Pull Request must be assigned to a milestone.');
+              return;
+            }
+
+            // Fetch all milestones for the repository
+            const milestones = await github.rest.issues.listMilestones({
+              owner,
+              repo,
+              state: 'open'
+            });
+
+            // Find the milestone with the earliest due date
+            const earliestMilestone = milestones.data.reduce((earliest, current) => {
+              if (!earliest.due_on) return current;
+              if (!current.due_on) return earliest;
+              
+              return new Date(earliest.due_on) <= new Date(current.due_on) 
+                ? earliest 
+                : current;
+            });
+
+            // Check if the current milestone is the earliest
+            if (earliestMilestone.number !== currentMilestone.number) {
+              core.setFailed(`Pull Request must be assigned to the milestone with the earliest due date (${earliestMilestone.title}).`);
             }
