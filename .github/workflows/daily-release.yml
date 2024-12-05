@@ -29,6 +29,8 @@ jobs:
 
       - name: Get Last Release Tag
         id: last_release_tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
           echo "Last release tag: $last_release_tag"
@@ -65,7 +67,7 @@ jobs:
 
       - name: Create Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "${{ env.last_release_tag }}" ]; then
             gh release create -d --latest --generate-notes --notes-start-tag
