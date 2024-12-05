@@ -46,6 +46,7 @@ jobs:
                 nodes {
                   title
                   dueOn
+                  number
                 }
               }
             }
@@ -54,6 +55,7 @@ jobs:
           # Extract title and due date
           milestone_title=$(echo "$milestone" | jq -r '.title')
           milestone_due_date=$(echo "$milestone" | jq -r '.dueOn')
+          milestone_number=$(echo "$milestone" | jq -r '.number')
       
           # Ensure a milestone is found
           if [ -z "$milestone_title" ] || [ -z "$milestone_due_date" ]; then
@@ -76,6 +78,7 @@ jobs:
           # Output the milestone title
           echo "Milestone title: $milestone_title"
           echo "milestone_title=$milestone_title" >> $GITHUB_ENV
+          echo "milestone_number=$milestone_number" >> $GITHUB_ENV
           echo "should_skip=false" >> $GITHUB_ENV
 
       - name: Create Release
@@ -94,3 +97,13 @@ jobs:
             gh release create ${{ env.latest_tag }} \
               --generate-notes
           fi
+
+      - name: Close Target Milestone
+        if: env.should_skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Close the milestone using GitHub API
+          gh api --method PATCH /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} \
+            -f state=closed \
+            -F comment="Release created for milestone completion."
