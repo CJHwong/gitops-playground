@@ -79,6 +79,7 @@ jobs:
           echo "should_skip=false" >> $GITHUB_ENV
 
       - name: Create Release
+        if: env.should_skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
