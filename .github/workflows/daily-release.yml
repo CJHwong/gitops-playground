@@ -10,7 +10,6 @@ on:
         required: false
 
 jobs:
-
   release:
     runs-on: ubuntu-latest
     
@@ -24,18 +23,17 @@ jobs:
       id: get_latest_tag
       run: |
         latest_tag=$(git describe --tags --abbrev=0)
-        echo "::set-output name=latest_tag::$latest_tag"
+        echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
     
-    - name: Get previous tag
-      id: get_previous_tag
+    - name: Get last release tag
+      id: get_last_release_tag
       run: |
-        previous_tag=$(git describe --tags --abbrev=0 ${{ steps.get_latest_tag.outputs.latest_tag }}^ 2>/dev/null)
-        if [ $? -ne 0 ]; then
-          echo "No previous tags found"
-          echo "::set-output name=previous_tag::"
-        else
-          echo "::set-output name=previous_tag::$previous_tag"
-        fi
+        last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || echo "")
+        echo "last_release_tag=$last_release_tag" >> $GITHUB_OUTPUT
+    
+    - name: Checkout to latest tag
+      run: |
+        git checkout ${{ steps.get_latest_tag.outputs.latest_tag }}
     
     - name: Check for GitHub milestone
       id: check_milestone
@@ -50,14 +48,16 @@ jobs:
             exit 1
           fi
         fi
-        echo "::set-output name=milestone_title::$milestone_title"
+        echo "milestone_title=$milestone_title" >> $GITHUB_OUTPUT
     
     - name: Create Release
-      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get_latest_tag.outputs.latest_tag }}
-        generate_release_notes: true
-        draft: false
-        prerelease: false
+      run: |
+        last_release_tag="${{ steps.get_last_release_tag.outputs.last_release_tag }}"
+        
+        if [ -n "$last_release_tag" ]; then
+          gh release create -d --latest --generate-notes --notes-start-tag=$last_release_tag
+        else
+          gh release create -d --latest --generate-notes
+        fi
