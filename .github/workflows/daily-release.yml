@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: '0 19 * * *' # Runs daily at 7 PM UTC
   workflow_dispatch:
-    inputs:
-      milestone_title:
-        description: 'Optional: Milestone title to use for the release'
-        required: false
-        default: ''
 
 jobs:
   release:
@@ -40,37 +35,50 @@ jobs:
 
       - name: Check for GitHub Milestone
         id: milestone
-        env:
-          INPUT_MILESTONE_TITLE: ${{ github.event.inputs.milestone_title }}
         run: |
-          if [ -z "$INPUT_MILESTONE_TITLE" ]; then
-            milestone_title=$(gh api graphql -f query='
-            {
-              repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
-                milestones(states: OPEN, first: 10, orderBy: {field: DUE_DATE, direction: ASC}) {
-                  nodes {
-                    title
-                    dueOn
-                  }
+          # Fetch the milestone with the earliest due date
+          milestone=$(gh api graphql -f query='
+          {
+            repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+              milestones(states: OPEN, first: 1, orderBy: {field: DUE_DATE, direction: ASC}) {
+                nodes {
+                  title
+                  dueOn
                 }
               }
-            }' | jq -r '.data.repository.milestones.nodes[] | select(.dueOn | startswith("'"$(date -u +%Y-%m-%d)"'")) | .title')
-            echo "Milestone title: $milestone_title"
-            echo "milestone_title=$milestone_title" >> $GITHUB_ENV
-          else
-            echo "Milestone title provided via input: $INPUT_MILESTONE_TITLE"
-            echo "milestone_title=$INPUT_MILESTONE_TITLE" >> $GITHUB_ENV
+            }
+          }' | jq -r '.data.repository.milestones.nodes[0]')
+          
+          # Extract title and due date
+          milestone_title=$(echo "$milestone" | jq -r '.title')
+          milestone_due_date=$(echo "$milestone" | jq -r '.dueOn')
+      
+          # Ensure a milestone is found
+          if [ -z "$milestone_title" ] || [ -z "$milestone_due_date" ]; then
+            echo "No open milestones with a due date found."
+            exit 0
           fi
-
-      - name: Echo Release Information
-        run: |
-          echo "Current Tag: ${{ env.latest_tag }}"
-          echo "Last Released Tag: ${{ env.last_release_tag }}"
+      
+          # Convert milestone due date to UTC (if needed)
+          milestone_due_date=$(date -u -d "$milestone_due_date" +"%Y-%m-%d")
+          today=$(date -u +"%Y-%m-%d")
+      
+          # Check if the due date is today
+          if [ "$milestone_due_date" != "$today" ]; then
+            echo "Milestone due date ($milestone_due_date) is not today ($today). Exiting workflow."
+            exit 0
+          fi
+      
+          # Output the milestone title
+          echo "Milestone title: $milestone_title"
 
       - name: Create Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          echo "Current Tag: ${{ env.latest_tag }}"
+          echo "Last Released Tag: ${{ env.last_release_tag }}"
+          
           if [ -n "${{ env.last_release_tag }}" ]; then
             gh release create ${{ env.latest_tag }} \
               --generate-notes \
