@@ -1,0 +1,55 @@
+name: Daily Release
+
+on:
+  schedule:
+    - cron: '0 19 * * *' # Run daily at 7 PM UTC
+  workflow_dispatch:
+    inputs:
+      milestone_title:
+        description: 'GitHub Milestone Title (Optional)'
+        required: false
+
+jobs:
+
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get latest tag
+      id: get_latest_tag
+      run: |
+        latest_tag=$(git describe --tags --abbrev=0)
+        echo "::set-output name=latest_tag::$latest_tag"
+    
+    - name: Get previous tag
+      id: get_previous_tag
+      run: |
+        previous_tag=$(git describe --tags --abbrev=0 ${{ steps.get_latest_tag.outputs.latest_tag }}^)
+        echo "::set-output name=previous_tag::$previous_tag"
+    
+    - name: Check for GitHub milestone
+      id: check_milestone
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        milestone_title="${{ github.event.inputs.milestone_title }}"
+        if [ -z "$milestone_title" ]; then
+          milestone_title=$(gh issue milestone list --limit 100 --json title,dueOn --jq '.[] | select(.dueOn == "$(date +"%Y-%m-%d")")|.title')
+          if [ -z "$milestone_title" ]; then
+            echo "No milestone due today"
+            exit 1
+          fi
+        fi
+        echo "::set-output name=milestone_title::$milestone_title"
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_latest_tag.outputs.latest_tag }}
+        generate_release_notes: true
+        draft: false
+        prerelease: false
