@@ -16,6 +16,13 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-tags: true
+        # Although the document of checkout action said the boolean variable of fetch-tags means: "Whether to fetch tags, even if fetch-depth > 0."
+        # We found the bug that it won't work when the fetch-depth > 0.
+        # The issue is here: https://github.com/actions/checkout/issues/1662.
+        # TODO: remove fetch-depth after the issue is resolved.
+        fetch-depth: 0
     
     - name: Get latest tag
       id: get_latest_tag
