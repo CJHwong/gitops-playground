@@ -1,4 +1,4 @@
-name: Release Workflow
+name: Daily Release
 
 on:
   schedule:
@@ -104,7 +104,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Close the milestone using GitHub API
           gh api --method PATCH /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} \
-            -f state=closed \
-            -F comment="Release created for milestone completion."
+            -f state=closed
