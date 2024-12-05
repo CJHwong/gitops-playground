@@ -77,3 +77,4 @@ jobs:
           else
             gh release create ${{ env.latest_tag }} \
               --generate-notes
+          fi
