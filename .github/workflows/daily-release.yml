@@ -73,7 +73,7 @@ jobs:
             gh release create -d --latest --generate-notes --notes-start-tag
             gh release create ${{ env.latest_tag }} \
               --generate-notes \
-              --notes-start-tag "${{ env.last_release_tag }}" \
+              --notes-start-tag "${{ env.last_release_tag }}"
           else
             gh release create ${{ env.latest_tag }} \
-              --generate-notes \
+              --generate-notes
