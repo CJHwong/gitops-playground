@@ -1,63 +1,77 @@
-name: Daily Release
+name: Release Workflow
 
 on:
   schedule:
-    - cron: '0 19 * * *' # Run daily at 7 PM UTC
+    - cron: '0 19 * * *' # Runs daily at 7 PM UTC
   workflow_dispatch:
     inputs:
       milestone_title:
-        description: 'GitHub Milestone Title (Optional)'
+        description: 'Optional: Milestone title to use for the release'
         required: false
+        default: ''
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-tags: true
-        fetch-depth: 0
-    
-    - name: Get latest tag
-      id: get_latest_tag
-      run: |
-        latest_tag=$(git describe --tags --abbrev=0)
-        echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
-    
-    - name: Get last release tag
-      id: get_last_release_tag
-      run: |
-        last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || echo "")
-        echo "last_release_tag=$last_release_tag" >> $GITHUB_OUTPUT
-    
-    - name: Checkout to latest tag
-      run: |
-        git checkout ${{ steps.get_latest_tag.outputs.latest_tag }}
-    
-    - name: Check for GitHub milestone
-      id: check_milestone
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        milestone_title="${{ github.event.inputs.milestone_title }}"
-        if [ -z "$milestone_title" ]; then
-          milestone_title=$(gh issue milestone list --limit 100 --json title,dueOn --jq '.[] | select(.dueOn == "$(date +"%Y-%m-%d")")|.title')
-          if [ -z "$milestone_title" ]; then
-            echo "No milestone due today"
-            exit 1
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all tags and commits
+
+      - name: Get Latest Tag
+        id: latest_tag
+        run: |
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest tag: $latest_tag"
+          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+
+      - name: Get Last Release Tag
+        id: last_release_tag
+        run: |
+          last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Last release tag: $last_release_tag"
+          echo "last_release_tag=$last_release_tag" >> $GITHUB_ENV
+
+      - name: Check for GitHub Milestone
+        id: milestone
+        env:
+          INPUT_MILESTONE_TITLE: ${{ github.event.inputs.milestone_title }}
+        run: |
+          if [ -z "$INPUT_MILESTONE_TITLE" ]; then
+            milestone_title=$(gh api graphql -f query='
+            {
+              repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+                milestones(states: OPEN, first: 10, orderBy: {field: DUE_DATE, direction: ASC}) {
+                  nodes {
+                    title
+                    dueOn
+                  }
+                }
+              }
+            }' | jq -r '.data.repository.milestones.nodes[] | select(.dueOn | startswith("'"$(date -u +%Y-%m-%d)"'")) | .title')
+            echo "Milestone title: $milestone_title"
+            echo "milestone_title=$milestone_title" >> $GITHUB_ENV
+          else
+            echo "Milestone title provided via input: $INPUT_MILESTONE_TITLE"
+            echo "milestone_title=$INPUT_MILESTONE_TITLE" >> $GITHUB_ENV
           fi
-        fi
-        echo "milestone_title=$milestone_title" >> $GITHUB_OUTPUT
-    
-    - name: Create Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        last_release_tag="${{ steps.get_last_release_tag.outputs.last_release_tag }}"
-        
-        if [ -n "$last_release_tag" ]; then
-          gh release create -d --latest --generate-notes --notes-start-tag=$last_release_tag
-        else
-          gh release create -d --latest --generate-notes
-        fi
+
+      - name: Echo Release Information
+        run: |
+          echo "Current Tag: ${{ env.latest_tag }}"
+          echo "Last Released Tag: ${{ env.last_release_tag }}"
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ env.last_release_tag }}" ]; then
+            gh release create -d --latest --generate-notes --notes-start-tag
+            gh release create ${{ env.latest_tag }} \
+              --generate-notes \
+              --notes-start-tag "${{ env.last_release_tag }}" \
+          else
+            gh release create ${{ env.latest_tag }} \
+              --generate-notes \
