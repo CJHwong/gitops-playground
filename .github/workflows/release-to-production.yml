@@ -3,7 +3,7 @@ name: Reset Release Branch
 on:
   release:
     types:
-      - published
+      - created
 
 jobs:
   reset_release_branch:
