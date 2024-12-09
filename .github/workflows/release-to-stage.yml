@@ -1,0 +1,26 @@
+name: Create Tag on Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create_tag:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Get the latest commit hash
+      id: get_commit
+      run: echo "commit=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+    - name: Create and push tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
+        git tag $TAG_NAME $commit
+        git push origin $TAG_NAME
