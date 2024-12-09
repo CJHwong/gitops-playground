@@ -1,0 +1,33 @@
+name: Reset Release Branch
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  reset_release_branch:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Reset release branch
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Fetch all branches and tags
+        git fetch --all
+
+        # Get the release tag
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+
+        # Check out the release branch
+        git checkout release || git checkout -b release
+
+        # Reset the branch to the release tag
+        git reset --hard $RELEASE_TAG
+
+        # Push the updated branch to the remote
+        git push origin release --force
