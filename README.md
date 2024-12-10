@@ -2,4 +2,4 @@
 
 --
 
-Create a second PR for updating README
+Create a PR for updating README
