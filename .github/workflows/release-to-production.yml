@@ -8,6 +8,7 @@ on:
 
 jobs:
   reset_release_branch:
+    permissions: write-all
     runs-on: ubuntu-latest
 
     steps:
