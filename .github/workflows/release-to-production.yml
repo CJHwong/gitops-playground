@@ -3,8 +3,8 @@ name: Release to Production
 on:
   release:
     types:
-      - created
       - published
+  workflow_dispatch:
 
 jobs:
   reset_release_branch:
