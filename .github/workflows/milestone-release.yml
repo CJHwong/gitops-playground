@@ -100,6 +100,20 @@ jobs:
               --generate-notes
           fi
 
+      - name: Update Milestone Description with Release Link
+        if: env.should_skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch the release URL
+          release_url=$(gh release view ${{ env.latest_tag }} --json url --jq '.url')
+          echo "Release URL: $release_url"
+          
+          # Update the milestone description
+          updated_description=$(gh api --method GET /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} --jq '.description + "\n\nRelease: " + "'$release_url'"')
+          gh api --method PATCH /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} \
+            -f description="$updated_description"
+
       - name: Close Target Milestone
         if: env.should_skip == 'false'
         env:
