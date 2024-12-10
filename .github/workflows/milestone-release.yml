@@ -110,6 +110,7 @@ jobs:
 
       - name: Trigger release-production.yml
         uses: actions/github-script@v7
+        if: env.should_skip == 'false'
         with:
           script: |
             const workflowFileName = "release-production.yml";
