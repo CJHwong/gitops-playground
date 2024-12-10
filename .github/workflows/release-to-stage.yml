@@ -1,4 +1,4 @@
-name: Create Tag on Merge
+name: Release to Stage
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Get the latest commit hash
       id: get_commit
@@ -22,6 +22,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
+        TAG_NAME="v$(date +'%y%m%d-%H%M')"
         git tag $TAG_NAME $commit
         git push origin $TAG_NAME
