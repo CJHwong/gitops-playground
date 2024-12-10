@@ -25,7 +25,7 @@ jobs:
             });
 
             // Workflow name to target
-            const workflowFileName = 'enforce-milestone.yml';
+            const workflowFileName = 'milestone-enforcement.yml';
 
             for (const pr of openPrs.data) {
               try {
