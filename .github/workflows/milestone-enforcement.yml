@@ -13,14 +13,12 @@ on:
 
 jobs:
   enforce-milestone:
-    permissions:
-      statuses: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/github-script@v7
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{secrets.TEST_GH_PAT}}
           script: |
             const { owner, repo } = context.repo;
             
