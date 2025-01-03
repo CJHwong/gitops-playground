@@ -1,23 +1,21 @@
 name: Daily Release for Milestone
 
 on:
-  schedule:
-    - cron: '0 19 * * *' # Runs daily at 7 PM UTC
+  # Disable automatic release creation temporarily for evaluation the new workflow
+  # schedule:
+  #   - cron: '0 9 * * *' # Runs daily at 5 PM Taipei time
   workflow_dispatch:
 
 jobs:
   release:
-    permissions:
-      contents: write
-      issues: write
-      actions: write
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Fetch all tags and commits
+          fetch-tags: true
 
       - name: Get Latest Tag
         id: latest_tag
@@ -26,109 +24,120 @@ jobs:
           echo "Latest tag: $latest_tag"
           echo "latest_tag=$latest_tag" >> $GITHUB_ENV
 
-      - name: Get Last Release Tag
-        id: last_release_tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-          echo "Last release tag: $last_release_tag"
-          echo "last_release_tag=$last_release_tag" >> $GITHUB_ENV
+      - name: Get Last Release Tag and Check Milestone
+        uses: actions/github-script@v7
+        id: init
+        with:
+          script: |
+            // Get last release tag
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 1
+            });
+            const lastReleaseTag = releases.data[0]?.tag_name;
+            core.exportVariable('last_release_tag', lastReleaseTag || '');
+            console.log('Last release tag:', lastReleaseTag);
 
-      - name: Check for GitHub Milestone
-        id: milestone
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Fetch the milestone with the earliest due date
-          milestone=$(gh api graphql -f query='
-          {
-            repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
-              milestones(states: OPEN, first: 1, orderBy: {field: DUE_DATE, direction: ASC}) {
-                nodes {
-                  title
-                  dueOn
-                  number
+            // Get milestone with earliest due date
+            const query = `query {
+              repository(owner: "${context.repo.owner}", name: "${context.repo.repo}") {
+                milestones(states: OPEN, first: 1, orderBy: {field: DUE_DATE, direction: ASC}) {
+                  nodes {
+                    title
+                    dueOn
+                    number
+                  }
                 }
               }
+            }`;
+
+            const result = await github.graphql(query);
+            const milestone = result.repository.milestones.nodes[0];
+
+            if (!milestone || !milestone.dueOn) {
+              core.exportVariable('should_skip', 'true');
+              return;
             }
-          }' | jq -r '.data.repository.milestones.nodes[0]')
-          
-          # Extract title and due date
-          milestone_title=$(echo "$milestone" | jq -r '.title')
-          milestone_due_date=$(echo "$milestone" | jq -r '.dueOn')
-          milestone_number=$(echo "$milestone" | jq -r '.number')
-      
-          # Ensure a milestone is found
-          if [ -z "$milestone_title" ] || [ -z "$milestone_due_date" ]; then
-            echo "No open milestones with a due date found."
-            echo "should_skip=true" >> $GITHUB_ENV
-            exit 0
-          fi
-      
-          # Convert milestone due date to UTC (if needed)
-          milestone_due_date=$(date -u -d "$milestone_due_date" +"%Y-%m-%d")
-          today=$(date -u +"%Y-%m-%d")
-      
-          # Check if the due date is today
-          if [ "$milestone_due_date" != "$today" ]; then
-            echo "Milestone due date ($milestone_due_date) is not today ($today). Exiting workflow."
-            echo "should_skip=true" >> $GITHUB_ENV
-            exit 0
-          fi
-      
-          # Output the milestone title
-          echo "Milestone title: $milestone_title"
-          echo "milestone_title=$milestone_title" >> $GITHUB_ENV
-          echo "milestone_number=$milestone_number" >> $GITHUB_ENV
-          echo "should_skip=false" >> $GITHUB_ENV
+
+            const milestoneDate = new Date(milestone.dueOn);
+            const today = new Date();
+            
+            // Compare dates (ignoring time)
+            const isSameDay = milestoneDate.getUTCFullYear() === today.getUTCFullYear() &&
+                            milestoneDate.getUTCMonth() === today.getUTCMonth() &&
+                            milestoneDate.getUTCDate() === today.getUTCDate();
+
+            if (!isSameDay) {
+              core.exportVariable('should_skip', 'true');
+              return;
+            }
+
+            core.exportVariable('milestone_title', milestone.title);
+            core.exportVariable('milestone_number', milestone.number);
+            core.exportVariable('should_skip', 'false');
 
       - name: Create Release
         if: env.should_skip == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Current Tag: ${{ env.latest_tag }}"
-          echo "Last Released Tag: ${{ env.last_release_tag }}"
-          
-          if [ -n "${{ env.last_release_tag }}" ]; then
-            gh release create ${{ env.latest_tag }} \
-              --generate-notes \
-              --notes-start-tag="${{ env.last_release_tag }}"
-          else
-            gh release create ${{ env.latest_tag }} \
-              --generate-notes
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseOptions = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: process.env.latest_tag,
+              generate_notes: true
+            };
 
-      - name: Update Milestone Description with Release Link
-        if: env.should_skip == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Fetch the release URL
-          release_url=$(gh release view ${{ env.latest_tag }} --json url --jq '.url')
-          echo "Release URL: $release_url"
-          
-          # Update the milestone description
-          updated_description=$(gh api --method GET /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} --jq '.description + "\n\nRelease: " + "'$release_url'"')
-          gh api --method PATCH /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} \
-            -f description="$updated_description"
+            if (process.env.last_release_tag) {
+              releaseOptions.previous_tag_name = process.env.last_release_tag;
+            }
 
-      - name: Close Target Milestone
+            const release = await github.rest.repos.createRelease(releaseOptions);
+            core.exportVariable('release_url', release.data.html_url);
+
+      - name: Update Milestone Description
         if: env.should_skip == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --method PATCH /repos/${{ github.repository }}/milestones/${{ env.milestone_number }} \
-            -f state=closed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get current milestone description
+            const { data: milestone } = await github.rest.issues.getMilestone({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              milestone_number: parseInt(process.env.milestone_number)
+            });
+
+            // Update milestone description with release link
+            const updatedDescription = `${milestone.description || ''}\n\nRelease: ${process.env.release_url}`;
+            
+            await github.rest.issues.updateMilestone({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              milestone_number: parseInt(process.env.milestone_number),
+              description: updatedDescription
+            });
+
+      - name: Close Milestone
+        if: env.should_skip == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.updateMilestone({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              milestone_number: parseInt(process.env.milestone_number),
+              state: 'closed'
+            });
 
       - name: Trigger release-production.yml
-        uses: actions/github-script@v7
         if: env.should_skip == 'false'
+        uses: actions/github-script@v7
         with:
           script: |
             const workflowFileName = "release-production.yml";
-            const ref = "main"; // Change this if you want to trigger a different branch
+            const ref = "main";
+            
             const workflows = await github.rest.actions.listRepoWorkflows({
               owner: context.repo.owner,
               repo: context.repo.repo,
