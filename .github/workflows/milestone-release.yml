@@ -84,16 +84,23 @@ jobs:
         with:
           github-token: ${{secrets.TEST_GH_PAT}}
           script: |
+            const releaseNoteOptions = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: process.env.latest_tag,
+            }
+            if (process.env.last_release_tag) {
+              releaseNoteOptions.previous_tag_name = process.env.last_release_tag;
+            }
+            const releaseNote = await github.rest.repos.generateReleaseNotes(releaseNoteOptions);
+          
             const releaseOptions = {
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: process.env.latest_tag,
-              generate_notes: true
+              body: releaseNote,
+              make_latest: true,
             };
-
-            if (process.env.last_release_tag) {
-              releaseOptions.previous_tag_name = process.env.last_release_tag;
-            }
 
             const release = await github.rest.repos.createRelease(releaseOptions);
             core.exportVariable('release_url', release.data.html_url);
