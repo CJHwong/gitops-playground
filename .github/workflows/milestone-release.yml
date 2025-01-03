@@ -99,7 +99,6 @@ jobs:
               repo: context.repo.repo,
               tag_name: process.env.latest_tag,
               body: releaseNote,
-              make_latest: true,
             };
 
             const release = await github.rest.repos.createRelease(releaseOptions);
