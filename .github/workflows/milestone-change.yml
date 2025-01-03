@@ -6,14 +6,12 @@ on:
 
 jobs:
   trigger-milestone-checks:
-    permissions:
-      actions: write
     runs-on: ubuntu-latest
     steps:
       - name: Rerun Milestone Enforcement Checks
         uses: actions/github-script@v7
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{secrets.TEST_GH_PAT}}
           script: |
             const { owner, repo } = context.repo;
             
